@@ -1,4 +1,4 @@
-use acts::{Engine, Vars, Workflow};
+use acts_next::{Engine, Vars, Workflow};
 use nanoid::nanoid;
 #[tokio::main]
 async fn main() {

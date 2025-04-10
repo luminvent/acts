@@ -1,4 +1,4 @@
-use acts::{data::Package, Engine, Vars, Workflow};
+use acts_next::{data::Package, Engine, Vars, Workflow};
 
 #[tokio::main]
 async fn main() {

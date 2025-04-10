@@ -1,4 +1,4 @@
-use acts::{Engine, Executor, Vars, Workflow};
+use acts_next::{Engine, Executor, Vars, Workflow};
 mod client;
 
 #[tokio::main]

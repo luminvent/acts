@@ -1,4 +1,4 @@
-use acts::{Builder, Vars, Workflow};
+use acts_next::{Builder, Vars, Workflow};
 
 mod client;
 
