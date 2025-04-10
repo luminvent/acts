@@ -1,4 +1,4 @@
-use acts::{ChannelOptions, Engine, Vars, Workflow};
+use acts_next::{ChannelOptions, Engine, Vars, Workflow};
 
 #[tokio::main]
 async fn main() {

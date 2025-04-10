@@ -1,4 +1,4 @@
-use acts::{Engine, MessageState, Vars, Workflow};
+use acts_next::{Engine, MessageState, Vars, Workflow};
 use criterion::*;
 use std::sync::{Arc, Mutex};
 use tokio::{
