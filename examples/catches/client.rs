@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use acts::{Event, Executor, Message, MessageState, Result, Vars};
+use acts_next::{Event, Executor, Message, MessageState, Result, Vars};
 use serde_json::json;
 
 type Action = fn(&Executor, &Event<Message>) -> Result<()>;

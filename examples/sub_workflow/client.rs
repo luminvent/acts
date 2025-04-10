@@ -1,4 +1,4 @@
-use acts::{Executor, Message, MessageState, Result, Vars};
+use acts_next::{Executor, Message, MessageState, Result, Vars};
 use serde_json::json;
 use std::collections::HashMap;
 
