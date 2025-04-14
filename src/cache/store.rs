@@ -13,16 +13,10 @@ impl Store {
         debug!("load cap={}", cap);
         let mut ret = Vec::new();
         if cap > 0 {
-            let query = Query::new()
-                .push(
-                    Cond::or()
-                        .push(Expr::eq("state", TaskState::None.to_string()))
-                        .push(Expr::eq("state", TaskState::Ready.to_string()))
-                        .push(Expr::eq("state", TaskState::Running.to_string()))
-                        .push(Expr::eq("state", TaskState::Pending.to_string())),
-                )
-                .set_limit(cap);
+            let query = Query::new().set_limit(cap);
+
             let procs = self.procs().query(&query)?;
+
             for p in procs.rows {
                 let model = Workflow::from_json(&p.model)?;
                 let env_local: serde_json::Value = serde_json::from_str(&p.env_local)
