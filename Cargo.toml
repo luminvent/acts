@@ -1,13 +1,16 @@
 
 [package]
-authors = ["Yao <yaojianpin@sohu.com>"]
+authors = [
+    "Yao <yaojianpin@sohu.com>",
+    "Marc-Antoine Arnaud <marc-antoine.arnaud@luminvent.com>"
+]
 description = "a fast, tiny, extensiable workflow engine"
 keywords = ["workflow"]
 edition = "2021"
 license = "Apache-2.0"
-name = "acts"
+name = "acts-next"
 homepage = "https://docs.rs/acts"
-repository = "https://github.com/yaojianpin/acts.git"
+repository = "https://github.com/luminvent/acts.git"
 version = "0.15.0"
 
 [dependencies]
