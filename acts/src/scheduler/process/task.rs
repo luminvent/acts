@@ -569,6 +569,16 @@ impl Task {
                 task.set_data(&ctx.vars());
                 task.error(ctx)?;
             }
+            EventAction::SetVars => {
+                if self.state().is_completed() {
+                    return Err(ActError::Action(format!(
+                        "task '{}:{}' is already completed",
+                        self.pid, self.id
+                    )));
+                }
+
+                self.set_data(&ctx.vars());
+            }
             EventAction::SetProcessVars => {
                 if self.state().is_completed() {
                     return Err(ActError::Action(format!(
