@@ -256,12 +256,12 @@ impl Task {
     pub fn inputs(self: &Arc<Self>) -> Vars {
         let ctx = self.create_context();
         let mut vars = Vars::new();
-        if let Some(prev) = self.prev() {
-            if let Some(prev_task) = self.proc.task(&prev) {
-                // set the prev task's outputs as current inputs
-                for (ref k, v) in &prev_task.outputs() {
-                    vars.set(k, v.clone());
-                }
+        if let Some(prev) = self.prev()
+            && let Some(prev_task) = self.proc.task(&prev)
+        {
+            // set the prev task's outputs as current inputs
+            for (ref k, v) in &prev_task.outputs() {
+                vars.set(k, v.clone());
             }
         }
 
