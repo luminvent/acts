@@ -195,7 +195,7 @@ impl Runtime {
                                 false
                             });
                         }
-
+/*
                         cache
                             .restore(&rt, |proc| {
                                 // println!("re-start process={process:?} tasks:{:?}", process.tasks());
@@ -203,7 +203,7 @@ impl Runtime {
                                     proc.start();
                                 }
                             })
-                            .unwrap_or_else(|err| error!("scher.initialize restore={}", err));
+                            .unwrap_or_else(|err| error!("scher.initialize restore={}", err));*/
                     }
                 } else {
                     error!("cannot find root pid={}", proc.id());
@@ -255,12 +255,11 @@ impl Runtime {
 
             let evt = self.emitter().clone();
             let cache = self.cache.clone();
+            let runtime = self.clone();
             self.emitter().on_tick(move |_| {
                 // do the process tick works
-                for proc in cache.procs().iter() {
-                    if proc.state().is_running() {
-                        proc.do_tick();
-                    }
+                for proc in cache.running_procs(&runtime) {
+                    proc.do_tick();
                 }
 
                 // re-send the messages if it is neither acked nor completed

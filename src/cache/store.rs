@@ -43,6 +43,39 @@ impl Store {
         Ok(ret)
     }
 
+    pub fn load_running_proc(&self, rt: &Arc<Runtime>) -> Result<Vec<Arc<scheduler::Process>>> {
+        debug!("load running procs");
+        let query = Query::new().push(Cond::and().push(Expr::eq("state", "running")));
+
+        let procs = self.procs().query(&query)?;
+
+        let mut ret = Vec::with_capacity(procs.rows.len());
+
+        for p in procs.rows {
+            let model = Workflow::from_json(&p.model)?;
+            let env_local: serde_json::Value = serde_json::from_str(&p.env_local)
+              .map_err(|err| ActError::Store(err.to_string()))?;
+            let state = p.state.clone();
+            let proc = scheduler::Process::new_with_timestamp(&p.id, p.timestamp, rt);
+
+            proc.load(&model)?;
+            proc.set_pure_state(state.into());
+            proc.set_start_time(p.start_time);
+            proc.set_end_time(p.end_time);
+            proc.set_env_local(&env_local.into());
+            if let Some(err) = p.err {
+                let err: Error = serde_json::from_str(&err)
+                  .map_err(|err| ActError::Store(err.to_string()))?;
+                proc.set_pure_err(&err)
+            }
+
+            self.load_tasks(&proc, rt)?;
+            ret.push(proc);
+        }
+
+        Ok(ret)
+    }
+
     pub fn load_proc(
         &self,
         pid: &str,

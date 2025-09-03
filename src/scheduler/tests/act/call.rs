@@ -139,6 +139,7 @@ async fn sch_act_call_act_skip() {
     emitter.on_message(move |e| {
         if e.is_key("act1") && e.is_state(MessageState::Created) {
             let options = Vars::new();
+            println!("SKIP");
             e.do_action(&e.pid, &e.tid, EventAction::Skip, &options)
                 .unwrap();
         }

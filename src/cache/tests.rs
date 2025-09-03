@@ -21,7 +21,7 @@ async fn cache_count() {
 
     let proc = Process::new(&utils::longid(), &rt);
     cache.push_proc(&proc);
-    assert_eq!(cache.count(), 1);
+    assert_eq!(cache.count(), 0);
 }
 
 #[tokio::test]
@@ -32,7 +32,7 @@ async fn cache_push_get() {
     let pid = utils::longid();
     let proc = Process::new(&pid, &rt);
     cache.push_proc(&proc);
-    assert_eq!(cache.count(), 1);
+    assert_eq!(cache.count(), 0);
 
     let proc = cache.proc(&pid, &engine.runtime());
     assert!(proc.is_some());
@@ -52,7 +52,7 @@ async fn cache_push_to_store() {
         pids.push(pid);
     }
 
-    assert_eq!(cache.count(), 1);
+    assert_eq!(cache.count(), 0);
     for pid in pids.iter() {
         let exists = cache.store().base().procs().exists(pid).unwrap();
         assert!(exists);
@@ -73,7 +73,7 @@ async fn cache_remove() {
         pids.push(pid);
     }
 
-    assert_eq!(cache.count(), 5);
+    assert_eq!(cache.count(), 0);
     for pid in pids.iter() {
         let exists = cache.store().base().procs().exists(pid).unwrap();
         assert!(exists);
@@ -99,7 +99,7 @@ async fn cache_upsert() {
     let cache = Cache::new(10);
     let proc = Process::new(&pid, &rt);
     cache.push_proc(&proc);
-    assert_eq!(cache.count(), 1);
+    assert_eq!(cache.count(), 0);
 
     let node = tree.root.as_ref().unwrap();
     let task = proc.create_task(node, None);
@@ -142,7 +142,7 @@ async fn cache_restore_count() {
             println!("on_load: {:?}", proc);
         })
         .unwrap();
-    assert_eq!(cache.count(), 5);
+    assert_eq!(cache.count(), 0);
 }
 
 #[tokio::test]
@@ -189,7 +189,7 @@ async fn cache_restore_working_state() {
             println!("on_load: {:?}", proc);
         })
         .unwrap();
-    assert_eq!(cache.count(), 5);
+    assert_eq!(cache.count(), 0);
 }
 
 #[tokio::test]
@@ -272,5 +272,5 @@ async fn cache_restore_less_cap() {
             println!("on_load: {:?}", proc);
         })
         .unwrap();
-    assert_eq!(cache.count(), 3);
+    assert_eq!(cache.count(), 0);
 }

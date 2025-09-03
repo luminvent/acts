@@ -256,6 +256,7 @@ async fn sch_step_hooks_store() {
             cache
                 .restore(&rt2, |proc| {
                     if let Some(task) = proc.task_by_nid("step1").first() {
+                        println!("hooks: {:?}", task.hooks().len());
                         rx.update(|data| *data = task.hooks().len());
                     }
                 })
