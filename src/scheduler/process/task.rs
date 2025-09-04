@@ -502,6 +502,7 @@ impl Task {
 
                 // set both current act and parent step to skip
                 self.set_state(TaskState::Skipped);
+                self.runtime.cache().upsert(&self);
                 self.next(ctx)?;
             }
             EventAction::Error => {
@@ -563,6 +564,9 @@ impl Task {
                 }
 
                 self.proc.set_data(&ctx.vars());
+                if let Some(task) = self.proc.root() {
+                    ctx.runtime.cache().upsert(&task)?;
+                }
                 ctx.runtime.cache().push_proc(&self.proc);
             }
         };
