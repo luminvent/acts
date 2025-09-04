@@ -552,6 +552,7 @@ impl Task {
                 }
 
                 self.set_data(&ctx.vars());
+                ctx.runtime.cache().upsert(&self)?;
             }
             EventAction::SetProcessVars => {
                 if self.state().is_completed() {
@@ -562,6 +563,7 @@ impl Task {
                 }
 
                 self.proc.set_data(&ctx.vars());
+                ctx.runtime.cache().push_proc(&self.proc);
             }
         };
 
