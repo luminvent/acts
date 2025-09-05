@@ -502,7 +502,7 @@ impl Task {
 
                 // set both current act and parent step to skip
                 self.set_state(TaskState::Skipped);
-                self.runtime.cache().upsert(&self);
+                self.runtime.cache().upsert(&self)?;
                 self.next(ctx)?;
             }
             EventAction::Error => {

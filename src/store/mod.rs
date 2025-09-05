@@ -45,7 +45,7 @@ pub trait DbSet: Send + Sync {
 ///
 /// # Example
 /// ```no_run
-/// use acts::{data::{Model, Proc, Task, Package, Message}, DbSet, StoreAdapter};
+/// use acts_next::{data::{Model, Proc, Task, Package, Message}, DbSet, StoreAdapter};
 /// use std::sync::Arc;
 /// struct TestStore;
 /// impl StoreAdapter for TestStore {

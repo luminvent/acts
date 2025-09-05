@@ -9,7 +9,7 @@ mod tests;
 /// ## Example
 ///
 /// ```rust,no_run
-/// use acts::{ActPlugin, Engine, Workflow};
+/// use acts_next::{ActPlugin, Engine, Workflow};
 /// #[derive(Clone)]
 /// struct TestPlugin;
 ///

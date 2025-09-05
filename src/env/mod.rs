@@ -15,7 +15,7 @@ use self::value::ActValue;
 ///
 /// # Example
 /// ```rust
-///   use acts::{ActModule, Result};
+///   use acts_next::{ActModule, Result};
 ///   #[derive(Clone)]
 ///   pub struct TestModule;
 ///   impl ActModule for TestModule {

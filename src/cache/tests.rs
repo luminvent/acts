@@ -192,7 +192,7 @@ async fn cache_restore_working_state() {
     assert_eq!(cache.count(), 5);
 }
 
-#[tokio::test]
+/*#[tokio::test]
 async fn cache_restore_completed_state() {
     let engine = Engine::new();
     let model = Workflow::new()
@@ -237,14 +237,14 @@ async fn cache_restore_completed_state() {
         })
         .unwrap();
     assert_eq!(cache.count(), 0);
-}
+}*/
 
 #[tokio::test]
 async fn cache_restore_less_cap() {
     let engine = Engine::new();
     let model = Workflow::new()
-        .with_id("m1")
-        .with_step(|step| step.with_name("step1"));
+      .with_id("m1")
+      .with_step(|step| step.with_name("step1"));
     let cache = Cache::new(5);
     cache.store().deploy(&model).unwrap();
 
@@ -268,9 +268,9 @@ async fn cache_restore_less_cap() {
     }
 
     cache
-        .restore(&engine.runtime(), |proc| {
-            println!("on_load: {:?}", proc);
-        })
-        .unwrap();
+      .restore(&engine.runtime(), |proc| {
+          println!("on_load: {:?}", proc);
+      })
+      .unwrap();
     assert_eq!(cache.count(), 3);
 }

@@ -27,9 +27,9 @@ impl Extender {
     ///
     /// ## Example
     /// ```no_run
-    /// use acts::Engine;
+    /// use acts_next::Engine;
     /// mod test_module {
-    ///   use acts::{ActModule, Result};
+    ///   use acts_next::{ActModule, Result};
     ///   #[derive(Clone)]
     ///   pub struct TestModule;
     ///   impl ActModule for TestModule {
@@ -51,7 +51,7 @@ impl Extender {
     /// ## Example
     ///
     /// ```no_run
-    /// use acts::{ActPlugin, Message, Engine, Workflow};
+    /// use acts_next::{ActPlugin, Message, Engine, Workflow};
     ///
     /// #[derive(Clone)]
     /// struct TestPlugin;

@@ -16,7 +16,7 @@ use tracing::info;
 /// a example to caculate the result from 1 to given input value
 ///
 ///```rust,no_run
-/// use acts::{Engine, Workflow, Vars};
+/// use acts_next::{Engine, Workflow, Vars};
 ///
 /// #[tokio::main]
 /// async fn main() {
@@ -80,7 +80,7 @@ impl Engine {
     /// if setting the emit_id by [`ChannelOptions`] it will check the status and re-send when not acking
     /// # Example
     /// ```no_run
-    /// use acts::{ Engine, ChannelOptions };
+    /// use acts_next::{ Engine, ChannelOptions };
     ///
     /// let engine = Engine::new();
     /// let chan = engine.channel_with_options(&ChannelOptions {  id: "chan1".to_string(),  ack: true,  r#type: "step".to_string(), key: "my_key*".to_string(), state: "{created, completed}".to_string(), tag: "*".to_string()  });
@@ -110,7 +110,7 @@ impl Engine {
     /// ## Example
     ///
     /// ```rust,no_run
-    /// use acts::{Engine, Workflow, Vars};
+    /// use acts_next::{Engine, Workflow, Vars};
     /// #[tokio::main]
     /// async fn main() {
     ///     let engine = Engine::new();

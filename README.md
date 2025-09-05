@@ -54,7 +54,7 @@ If you are using `store` feature, For Windows, recommeded [`MSYS2`](https://www.
 5. Start the workflow by `engine.executor().model()`.
 
 ```rust,no_run
-use acts::{Engine, Vars, Workflow};
+use acts_next::{Engine, Vars, Workflow};
 
 #[tokio::main]
 async fn main() {
@@ -142,7 +142,7 @@ steps:
 The inputs can also be set by starting the workflow.
 
 ```rust,no_run
-use acts::{Engine, Vars, Workflow};
+use acts_next::{Engine, Vars, Workflow};
 
 #[tokio::main]
 async fn main() {
@@ -492,7 +492,7 @@ acts = { version = "*", features = ["store"] }
 For external store:
 
 ```rust,no_run
-use acts::{Engine, Builder, data::{Model, Proc, Task, Package, Message}, DbSet, StoreAdapter};
+use acts_next::{Engine, Builder, data::{Model, Proc, Task, Package, Message}, DbSet, StoreAdapter};
 use std::sync::Arc;
 
 #[derive(Clone)]

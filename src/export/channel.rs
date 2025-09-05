@@ -89,7 +89,7 @@ impl Channel {
     ///
     /// Example
     /// ```rust,no_run
-    /// use acts::{Engine, Act, Workflow, Vars, Message};
+    /// use acts_next::{Engine, Act, Workflow, Vars, Message};
     ///
     /// #[tokio::main]
     /// async fn main() {
