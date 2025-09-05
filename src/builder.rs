@@ -60,6 +60,11 @@ impl Builder {
         self
     }
 
+    pub fn keep_processes(mut self, keep_processes: bool) -> Self {
+        self.config.keep_processes = keep_processes;
+        self
+    }
+
     pub fn store<STORE: StoreAdapter + Clone + 'static>(mut self, store: &STORE) -> Self {
         self.store = Some(Arc::new(store.clone()));
         self
