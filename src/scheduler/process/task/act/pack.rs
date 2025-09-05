@@ -22,7 +22,7 @@ impl ActTask for Pack {
         ctx.eval::<()>(&script)?;
 
         if task.state().is_running() {
-            task.set_state(TaskState::Completed);
+            task.set_state(TaskState::Completed, &ctx.runtime);
         }
         Ok(())
     }

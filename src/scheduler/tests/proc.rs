@@ -12,9 +12,9 @@ async fn sch_proc_send() {
     let id = utils::longid();
     let (proc, rt, ..) = create_proc_signal::<()>(&mut workflow, &id);
     rt.launch(&proc);
-    rt.scher().next().await;
-
-    assert!(rt.proc(&id).is_some())
+    rt.scher().next(&rt).await;
+    
+    assert!(rt.get_process(&id).is_ok())
 }
 
 #[tokio::test]

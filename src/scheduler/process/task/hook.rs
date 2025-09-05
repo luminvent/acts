@@ -41,7 +41,7 @@ impl StatementBatch {
                     // if the catch is no err key, it will catch all error
                     if c.on.is_none() || &err.ecode == c.on.as_ref().unwrap() {
                         task.set_data_with(|data| data.set(consts::IS_CATCH_PROCESSED, true));
-                        task.set_state(TaskState::Running);
+                        task.set_state(TaskState::Running, &ctx.runtime);
                         for s in &c.then {
                             s.exec(ctx)?;
                         }

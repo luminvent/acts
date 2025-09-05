@@ -3,14 +3,7 @@ use tracing::{debug, error};
 
 use super::{Process, Scheduler, Task, TaskState};
 use crate::event::EventAction;
-use crate::{
-    cache::Cache,
-    data,
-    env::Enviroment,
-    event::Emitter,
-    utils::{self, consts},
-    ActError, Action, Config, Engine, Result, Vars, Workflow,
-};
+use crate::{cache::Cache, data, env::Enviroment, event::Emitter, utils::{self, consts}, ActError, Action, Config, Engine, Result, Vars, Workflow};
 use std::{sync::Arc, time::Duration};
 
 #[derive(Debug, Clone)]
@@ -64,34 +57,34 @@ impl Runtime {
         self.emitter.init(&engine.runtime());
     }
 
-    pub fn start(self: &Arc<Self>, model: &Workflow, options: &Vars) -> Result<Arc<Process>> {
-        debug!("scheduler::start({})", model.id);
+    pub fn start(self: &Arc<Self>, workflow: &Workflow, options: &Vars) -> Result<Arc<Process>> {
+        debug!("scheduler::start({})", workflow.id);
 
         let mut proc_id = utils::longid();
         if let Some(pid) = &options.get::<String>("pid") {
             // the pid will use as the proc_id
             proc_id = pid.to_string();
         }
-        let proc = self.cache.proc(&proc_id, self);
-        if proc.is_some() {
+
+        if self.cache.get_process_state(&proc_id, self).is_some() {
             return Err(ActError::Action(format!(
                 "proc_id({proc_id}) is duplicated in running process list"
             )));
         }
 
-        let mut w = model.clone();
-        w.set_inputs(options);
+        let mut workflow = workflow.clone();
+        workflow.set_inputs(options);
 
-        let proc = Process::new(&proc_id, self);
-        proc.load(&w)?;
+        let proc = self.create_proc(&proc_id, &workflow);
+
         self.launch(&proc);
 
         Ok(proc)
     }
 
-    pub fn proc(self: &Arc<Self>, pid: &str) -> Option<Arc<Process>> {
-        self.cache.proc(pid, self)
-    }
+    // pub fn proc(self: &Arc<Self>, pid: &str) -> Option<Arc<Process>> {
+    //     self.cache.proc(pid, self)
+    // }
 
     pub fn launch(self: &Arc<Self>, proc: &Arc<Process>) {
         debug!("scheduler::launch");
@@ -103,28 +96,30 @@ impl Runtime {
 
     #[allow(unused)]
     pub(crate) fn create_proc(self: &Arc<Self>, pid: &str, model: &Workflow) -> Arc<Process> {
-        let proc = Process::new(pid, self);
-        proc.load(model);
-        proc
+        let process = Process::new(pid, self);
+        process.load(model);
+
+        self.cache.push_proc(&process);
+
+        process
     }
 
-    pub fn push(&self, task: &Arc<Task>) {
+    #[cfg(test)]
+    pub(crate) fn get_process(self: &Arc<Self>, pid: &str) -> Result<crate::ProcInfo> {
+        self.cache.get_process_info(pid, &self)
+    }
+
+    pub fn create_task(&self, task: &Arc<Task>) {
         debug!("scheduler::push  task={:?}", task);
         self.cache
-            .upsert(task)
+            .create_or_update_task(task)
             .unwrap_or_else(|_| panic!("fail to upsert task({})", task.id));
         self.scher.push(task);
     }
 
     pub fn do_action(self: &Arc<Self>, action: &Action) -> Result<()> {
         debug!("scheduler::do_action  action={:?}", action);
-        match self.cache.proc(&action.pid, self) {
-            Some(proc) => proc.do_action(action),
-            None => Err(ActError::Runtime(format!(
-                "cannot find process '{}' when do_action({:?})",
-                action.pid, action
-            ))),
-        }
+        self.cache.do_action(action, self)
     }
 
     pub fn ack(&self, id: &str) -> Result<()> {
@@ -136,9 +131,11 @@ impl Runtime {
     pub fn event_loop(self: &Arc<Self>) {
         let scher = self.scher.clone();
         let cache = self.cache.clone();
+        let runtime = self.clone();
+
         tokio::spawn(async move {
             loop {
-                let ret = scher.next().await;
+                let ret = scher.next(&runtime).await;
                 if !ret {
                     cache.close();
                     break;
@@ -212,26 +209,20 @@ impl Runtime {
             });
         }
         {
-            let cache = self.cache.clone();
             let rt = self.clone();
-            self.scher.on_task(move |e| {
-                debug!("on_task: task={:?}", e.inner());
-                cache
-                    .upsert(e)
-                    .unwrap_or_else(|err| error!("scher.initialize upsert={}", err));
+            self.scher.on_task(move |task_info_event| {
+                debug!("on_task: task={:?}", task_info_event.inner());
 
-                let ctx = e.create_context();
-                // run the hook events
-                e.run_hooks(&ctx)
-                    .unwrap_or_else(|err| error!("scher.initialize hooks={}", err));
+                rt.cache.run_hooks_for_task(task_info_event, &rt)
+                  .unwrap_or_else(|err| error!("scher.initialize hooks={}", err));
 
                 // check task is allowed to emit message to client
-                if e.extra().emit_message
-                    && !e.state().is_pending()
-                    && !e.state().is_running()
-                    && !e.is_emit_disabled()
+                if task_info_event.extra().emit_message
+                    && !(&task_info_event.state == "pending")
+                    && !(&task_info_event.state == "running")
+                    && !task_info_event.extra().is_emit_disabled
                 {
-                    let msg = e.create_message();
+                    let msg = rt.cache.create_message(task_info_event, &rt).unwrap();
                     debug!("emit_message:{msg:?}");
                     rt.emitter().emit_message(&msg);
                 }
@@ -255,13 +246,11 @@ impl Runtime {
 
             let evt = self.emitter().clone();
             let cache = self.cache.clone();
+            let rt = self.clone();
+
             self.emitter().on_tick(move |_| {
                 // do the process tick works
-                for proc in cache.procs().iter() {
-                    if proc.state().is_running() {
-                        proc.do_tick();
-                    }
-                }
+                cache.do_tick_on_running_processes(&rt);
 
                 // re-send the messages if it is neither acked nor completed
                 cache.store().with_no_response_messages(

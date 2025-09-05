@@ -28,10 +28,10 @@ pub enum TaskState {
     /// task is backed by back action
     Backed,
 
-    /// task is cancelled by cancel action
+    /// task is canceled by cancel action
     Cancelled,
 
-    /// task is failed with some reasons
+    /// task is failed for some reasons
     Error,
 
     /// task is aborted by abort action

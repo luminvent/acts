@@ -1,14 +1,10 @@
-use crate::{
-    config::Config,
-    event::{Emitter, TaskExtra},
-    scheduler::{
-        queue::{Queue, Signal},
-        Process, Task,
-    },
-    Engine, Event, Result,
-};
+use crate::{config::Config, event::{Emitter, TaskExtra}, scheduler::{
+    queue::{Queue, Signal},
+    Process, Task,
+}, Engine, Event, Result, TaskInfo};
 use std::sync::{Arc, Mutex};
 use tracing::debug;
+use crate::scheduler::Runtime;
 
 #[derive(Clone)]
 pub struct Scheduler {
@@ -45,7 +41,7 @@ impl Scheduler {
         self.queue.send(&Signal::Task(task.clone()));
     }
 
-    pub async fn next(self: &Arc<Self>) -> bool {
+    pub async fn next(self: &Arc<Self>, rt: &Arc<Runtime>) -> bool {
         if let Some(signal) = self.queue.next().await {
             debug!("next: {:?}", signal);
             match signal {
@@ -53,7 +49,7 @@ impl Scheduler {
                     let ctx = &task.create_context();
                     task.exec(ctx).unwrap_or_else(|err| {
                         eprintln!("error: {err}");
-                        task.set_err(&err.into());
+                        task.set_err(&err.into(), rt);
                         let _ = ctx.emit_error();
                     });
                 }
@@ -80,7 +76,7 @@ impl Scheduler {
         self.emitter.on_proc(f)
     }
 
-    pub fn on_task(&self, f: impl Fn(&Event<Arc<Task>, TaskExtra>) + Send + Sync + 'static) {
+    pub fn on_task(&self, f: impl Fn(&Event<TaskInfo, TaskExtra>) + Send + Sync + 'static) {
         self.emitter.on_task(f)
     }
 
@@ -88,7 +84,7 @@ impl Scheduler {
         self.emitter.emit_proc_event(proc)
     }
 
-    pub fn emit_task_event(&self, task: &Arc<Task>) -> Result<()> {
+    pub fn emit_task_event(&self, task: &TaskInfo) -> Result<()> {
         self.emitter.emit_task_event(task)
     }
 }

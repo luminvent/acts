@@ -136,7 +136,7 @@ impl Act {
                 if task.state().is_none() {
                     task.add_hook_stmts(TaskLifeCycle::Created, &cmd.into());
                 } else if let Err(err) = cmd.run(ctx) {
-                    task.set_state(TaskState::Error);
+                    task.set_state(TaskState::Error, &ctx.runtime);
                     return Err(err);
                 }
             }

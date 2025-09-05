@@ -51,6 +51,7 @@ impl TaskTree {
                 // }
             })
             .or_insert(task.clone());
+        
         if task.node().kind() == NodeKind::Workflow {
             self.root = Some(task);
         }

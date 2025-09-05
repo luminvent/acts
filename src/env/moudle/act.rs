@@ -75,13 +75,16 @@ mod act {
     pub fn complete() -> rquickjs::Result<()> {
         Context::with(|ctx| {
             let task = ctx.task();
-            ctx.set_action(&Action::new(
+            let action = Action::new(
                 &task.pid,
                 &task.id,
                 EventAction::Next,
                 &Vars::new(),
-            ))?;
-            task.update_no_lock(ctx)?;
+            );
+
+            ctx.set_action(&action)?;
+            ctx.runtime.cache().do_action(&action, &ctx.runtime)?;
+
             Ok(())
         })
         .map_err(|err: ActError| err.into())
@@ -91,13 +94,16 @@ mod act {
     pub fn abort() -> rquickjs::Result<()> {
         Context::with(|ctx| {
             let task = ctx.task();
-            ctx.set_action(&Action::new(
+
+            let action = Action::new(
                 &task.pid,
                 &task.id,
                 EventAction::Abort,
                 &Vars::new(),
-            ))?;
-            task.update_no_lock(ctx)?;
+            );
+
+            ctx.set_action(&action)?;
+            ctx.runtime.cache().do_action(&action, &ctx.runtime)?;
 
             Ok(())
         })
@@ -109,8 +115,17 @@ mod act {
         let vars = Vars::new().with(consts::ACT_TO, nid);
         Context::with(|ctx| {
             let task = ctx.task();
-            ctx.set_action(&Action::new(&task.pid, &task.id, EventAction::Back, &vars))?;
-            task.update_no_lock(ctx)?;
+
+            let action = Action::new(
+                &task.pid,
+                &task.id,
+                EventAction::Back,
+                &vars,
+            );
+
+            ctx.set_action(&action)?;
+            ctx.runtime.cache().do_action(&action, &ctx.runtime)?;
+
             Ok(())
         })
         .map_err(|err: ActError| err.into())
@@ -120,13 +135,16 @@ mod act {
     pub fn skip() -> rquickjs::Result<()> {
         Context::with(|ctx| {
             let task = ctx.task();
-            ctx.set_action(&Action::new(
+            let action = Action::new(
                 &task.pid,
                 &task.id,
                 EventAction::Skip,
                 &Vars::new(),
-            ))?;
-            task.update_no_lock(ctx)?;
+            );
+
+            ctx.set_action(&action)?;
+            ctx.runtime.cache().do_action(&action, &ctx.runtime)?;
+
             Ok(())
         })
         .map_err(|err: ActError| err.into())
@@ -139,8 +157,12 @@ mod act {
             .with(consts::ACT_ERR_MESSAGE, message);
         Context::with(|ctx| {
             let task = ctx.task();
-            ctx.set_action(&Action::new(&task.pid, &task.id, EventAction::Error, &vars))?;
-            task.update_no_lock(ctx)?;
+
+            let action = Action::new(&task.pid, &task.id, EventAction::Error, &vars);
+
+            ctx.set_action(&action)?;
+            ctx.runtime.cache().do_action(&action, &ctx.runtime)?;
+
             Ok(())
         })
         .map_err(|err: ActError| err.into())

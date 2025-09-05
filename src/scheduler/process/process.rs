@@ -1,14 +1,7 @@
-use crate::event::EventAction;
-use crate::{
-    data,
-    event::Action,
-    scheduler::{
-        tree::{Node, NodeTree, TaskTree},
-        Context, Runtime, Task, TaskLifeCycle, TaskState,
-    },
-    utils::{self, consts},
-    ActError, Error, NodeKind, ProcInfo, Result, ShareLock, Vars, Workflow,
-};
+use crate::{data, scheduler::{
+    tree::{Node, NodeTree, TaskTree},
+    Context, Runtime, Task, TaskLifeCycle, TaskState,
+}, utils::{self, consts}, Error, NodeKind, ProcInfo, Result, ShareLock, Vars, Workflow};
 use serde::Deserialize;
 use std::{
     cell::RefCell,
@@ -269,57 +262,6 @@ impl Process {
     }
 
     #[instrument()]
-    pub fn do_action(self: &Arc<Self>, action: &Action) -> Result<()> {
-        let mut action = action.clone();
-        let task = self.task(&action.tid).ok_or(ActError::Action(format!(
-            "cannot find task by '{}' tasks={:?}",
-            action.tid,
-            self.tasks()
-        )))?;
-
-        if action.event == EventAction::Push {
-            if !task.is_kind(NodeKind::Step) {
-                return Err(ActError::Action(format!(
-                    "The task '{}' is not an Step task",
-                    action.tid
-                )));
-            }
-        } else if !task.is_kind(NodeKind::Act) {
-            return Err(ActError::Action(format!(
-                "The task '{}' is not an Act task",
-                action.tid
-            )));
-        }
-
-        // check the outputs
-        task.outputs();
-        // check act return
-        let rets = task.node().content.rets();
-
-        if !rets.is_empty() {
-            let mut options = Vars::new();
-            for (ref key, _) in &rets {
-                if !action.options.contains_key(key) {
-                    return Err(ActError::Action(format!(
-                        "the options is not satisfied with act's rets '{}' in task({})",
-                        key, action.tid
-                    )));
-                }
-                let value = action.options.get_value(key).unwrap();
-                options.set(key, value.clone());
-            }
-
-            // retset the options by rets defination
-            action.options = options;
-        }
-
-        let ctx = task.create_context();
-        ctx.set_action(&action)?;
-        task.update(&ctx)?;
-        Ok(())
-    }
-
-    #[instrument()]
     pub fn do_task(self: &Arc<Self>, tid: &str, ctx: &Context) {
         debug!("do_task tid={}", tid);
         //let task = ctx.task();
@@ -331,7 +273,7 @@ impl Process {
         if let Some(task) = &self.task(tid) {
             task.exec(ctx).unwrap_or_else(|err| {
                 eprintln!("error: {err}");
-                task.set_err(&err.into());
+                task.set_err(&err.into(), &ctx.runtime);
                 let _ = ctx.emit_error();
             });
         } else {
@@ -348,14 +290,14 @@ impl Process {
         let tr = self.tree();
         if let Some(root) = &tr.root {
             let task = self.create_task(root, None);
-            self.runtime.push(&task);
+            self.runtime.create_task(&task);
         }
     }
 
     pub fn create_task(
         self: &Arc<Process>,
         node: &Arc<Node>,
-        prev: Option<Arc<Task>>,
+        prev_id: Option<String>,
     ) -> Arc<Task> {
         let mut tid = utils::shortid();
         if node.kind() == NodeKind::Workflow {
@@ -364,8 +306,8 @@ impl Process {
             tid = consts::TASK_ROOT_TID.to_string();
         }
         let task = Arc::new(Task::new(self, &tid, node.clone(), &self.runtime));
-        if let Some(prev) = prev {
-            task.set_prev(Some(prev.id.clone()));
+        if let Some(prev_id) = prev_id {
+            task.set_prev(Some(prev_id.clone()));
         }
         self.push_task(task.clone());
         task

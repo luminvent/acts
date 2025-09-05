@@ -14,7 +14,7 @@ impl ActTask for Irq {
                 task.node.id
             )));
         }
-        task.set_state(TaskState::Interrupt);
+        task.set_state(TaskState::Interrupt, &ctx.runtime);
         Ok(())
     }
 
@@ -31,7 +31,7 @@ impl ActTask for Irq {
                     return Ok(false);
                 }
                 if t.state().is_skip() {
-                    task.set_state(TaskState::Skipped);
+                    task.set_state(TaskState::Skipped, &ctx.runtime);
                     return Ok(true);
                 }
 
@@ -41,7 +41,7 @@ impl ActTask for Irq {
             }
 
             if count == tasks.len() && !task.state().is_completed() {
-                task.set_state(TaskState::Completed);
+                task.set_state(TaskState::Completed, &ctx.runtime);
             }
         }
 

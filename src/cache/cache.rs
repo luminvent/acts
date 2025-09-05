@@ -1,11 +1,13 @@
-use crate::{
-    scheduler::{Process, Runtime, Task},
-    store::Store,
-    Engine, Result, ShareLock, StoreAdapter,
-};
+mod do_action_over_task;
+
+use crate::scheduler::{NodeKind, TaskState};
+use crate::{scheduler::{Process, Runtime, Task}, store::Store, ActError, Action, Engine, Message, ProcInfo, Result, ShareLock, StoreAdapter, TaskInfo, Vars};
 use moka::sync::Cache as MokaCache;
+use std::ops::Deref;
 use std::sync::{Arc, RwLock};
-use tracing::{debug, error, instrument};
+use tracing::{debug, instrument};
+use crate::cache::cache::do_action_over_task::do_action_over_task;
+use crate::event::EventAction;
 
 #[derive(Clone)]
 pub struct Cache {
@@ -67,35 +69,93 @@ impl Cache {
         self.push_proc_pri(proc, true);
     }
 
-    pub fn procs(&self) -> Vec<Arc<Process>> {
-        let mut procs = Vec::new();
-        for (_, proc) in self.procs.iter() {
-            procs.push(proc.clone());
-        }
-        procs
-    }
-
-    #[instrument]
-    pub fn proc(&self, pid: &str, rt: &Arc<Runtime>) -> Option<Arc<Process>> {
-        debug!("process: pid={pid}");
-        match self.get_proc(pid) {
-            Some(proc) => Some(proc.clone()),
-            None => {
-                let store = self.store.read().unwrap();
-                if let Some(proc) = store.load_proc(pid, rt).unwrap_or_else(|err| {
-                    error!("cache.process store.loadproc={}", err);
-                    eprintln!("cache.process store.loadproc={}", err);
-                    None
-                }) {
-                    debug!("loaded: {:?}", proc);
-                    debug!("tasks: {:?}", proc.tasks());
-                    // add to cache
-                    self.push_proc_pri(&proc, false);
-                    return Some(proc);
-                }
-                None
+    pub fn do_tick_on_running_processes(&self, rt: &Arc<Runtime>) {
+        let store = self.store.read().unwrap();
+        if let Ok(processes) = store.load_running_processes(rt) {
+            for process in processes {
+                process.do_tick()
             }
         }
+    }
+
+    pub fn get_process_state(&self, pid: &str, runtime: &Arc<Runtime>) -> Option<TaskState> {
+        self.store
+            .read()
+            .unwrap()
+            .load_proc(pid, runtime)
+            .ok()
+            .and_then(|process| process.map(|process| process.state()))
+    }
+
+    pub fn get_process_info(&self, pid: &str, runtime: &Arc<Runtime>) -> Result<ProcInfo> {
+        let process = self.get_process(pid, runtime)?;
+
+        let mut tasks: Vec<TaskInfo> = process.tasks().iter().map(TaskInfo::from).collect();
+        tasks.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+        let mut process_info = process.deref().info().clone();
+        process_info.tasks = tasks;
+        Ok(process_info)
+    }
+
+    pub fn run_hooks_for_task(&self, task_info: &TaskInfo, runtime: &Arc<Runtime>) -> Result<()> {
+        let task = self.get_task(&task_info.pid, &task_info.id, runtime)?;
+
+        let context = task.create_context();
+        task.run_hooks(&context)?;
+
+        Ok(())
+    }
+
+    pub fn create_message(&self, task_info: &TaskInfo, runtime: &Arc<Runtime>) -> Result<Message> {
+        let task = self.get_task(&task_info.pid, &task_info.id, runtime)?;
+        Ok(task.create_message())
+    }
+
+    pub fn do_action(&self, action: &Action, runtime: &Arc<Runtime>) -> Result<()> {
+        let task = self.get_task(&action.pid, &action.tid, runtime)?;
+
+        if action.event == EventAction::Push {
+            if !task.is_kind(NodeKind::Step) {
+                return Err(ActError::Action(format!(
+                    "The task '{}' is not an Step task",
+                    action.tid
+                )));
+            }
+        } else if !task.is_kind(NodeKind::Act) {
+            return Err(ActError::Action(format!(
+                "The task '{}' is not an Act task",
+                action.tid
+            )));
+        }
+
+        // check the outputs
+        task.outputs();
+        // check act return
+        let rets = task.node().content.rets();
+
+        let mut action = action.clone();
+
+        if !rets.is_empty() {
+            let mut options = Vars::new();
+            for (ref key, _) in &rets {
+                if !action.options.contains_key(key) {
+                    return Err(ActError::Action(format!(
+                        "the options is not satisfied with act's rets '{}' in task({})",
+                        key, action.tid
+                    )));
+                }
+                let value = action.options.get_value(key).unwrap();
+                options.set(key, value.clone());
+            }
+
+            // reset the options by rets definition
+            action.options = options;
+        }
+
+        do_action_over_task(&task, &action, &runtime)?;
+
+        Ok(())
     }
 
     #[instrument]
@@ -129,7 +189,7 @@ impl Cache {
     }
 
     #[instrument]
-    pub fn upsert(&self, task: &Arc<Task>) -> Result<()> {
+    pub fn create_or_update_task(&self, task: &Arc<Task>) -> Result<()> {
         self.push_task_pri(task, true)
     }
 
@@ -138,8 +198,20 @@ impl Cache {
         self.procs.remove(pid);
     }
 
-    fn get_proc(&self, pid: &str) -> Option<Arc<Process>> {
-        self.procs.get(pid)
+    fn get_process(&self, process_id: &str, runtime: &Arc<Runtime>) -> Result<Arc<Process>> {
+        let store = self.store.read().unwrap();
+
+        store.load_proc(&process_id, runtime).and_then(|process| process.ok_or(
+            ActError::Runtime(format!("cannot find process '{process_id}'"))
+        ))
+    }
+
+    fn get_task(&self, process_id: &str, task_id: &str, runtime: &Arc<Runtime>) -> Result<Arc<Task>> {
+        let process = self.get_process(process_id, runtime)?;
+
+        process.task(task_id).ok_or(
+            ActError::Runtime(format!("cannot find task '{task_id}' on process '{process_id}'"))
+        )
     }
 
     pub(super) fn push_proc_pri(&self, proc: &Arc<Process>, save: bool) {

@@ -1,9 +1,5 @@
 use super::hook::TaskLifeCycle;
-use crate::{
-    model::Step,
-    scheduler::{Context, NodeContent, TaskState},
-    ActError, ActTask, Result, StoreAdapter,
-};
+use crate::{model::Step, scheduler::{Context, NodeContent, TaskState}, ActError, ActTask, Result, StoreAdapter, TaskInfo};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -13,7 +9,7 @@ impl ActTask for Step {
         if let Some(expr) = &self.r#if {
             let cond = ctx.eval::<bool>(expr)?;
             if !cond {
-                task.set_state(TaskState::Skipped);
+                task.set_state(TaskState::Skipped, &ctx.runtime);
                 return Ok(());
             }
         }
@@ -82,10 +78,10 @@ impl ActTask for Step {
             for task in tasks.iter() {
                 if task.state().is_none() || task.state().is_running() {
                     is_next = true;
-                } else if task.state().is_pending() && task.is_ready() {
+                } else if task.state().is_pending() && task.is_ready(ctx) {
                     // resume task
-                    task.set_state(TaskState::Running);
-                    ctx.runtime.scher().emit_task_event(task)?;
+                    task.set_state(TaskState::Running, &ctx.runtime);
+                    ctx.runtime.scher().emit_task_event(&TaskInfo::from(task))?;
                     task.exec(ctx)?;
                     is_next = true;
                 }
@@ -96,7 +92,7 @@ impl ActTask for Step {
 
             if count == tasks.len() {
                 if !task.state().is_completed() {
-                    task.set_state(TaskState::Completed);
+                    task.set_state(TaskState::Completed, &ctx.runtime);
                 }
 
                 if let Some(next) = &task.node.next().upgrade() {
@@ -122,10 +118,10 @@ impl ActTask for Step {
             let tasks = task.children();
             let mut count = 0;
             for task in tasks.iter() {
-                if task.state().is_pending() && task.is_ready() {
+                if task.state().is_pending() && task.is_ready(ctx) {
                     // resume task
-                    task.set_state(TaskState::Running);
-                    ctx.runtime.scher().emit_task_event(task)?;
+                    task.set_state(TaskState::Running, &ctx.runtime);
+                    ctx.runtime.scher().emit_task_event(&TaskInfo::from(task))?;
                     task.exec(ctx)?;
                     return Ok(false);
                 }
@@ -136,7 +132,7 @@ impl ActTask for Step {
 
             if count == tasks.len() {
                 if !task.state().is_completed() {
-                    task.set_state(TaskState::Completed);
+                    task.set_state(TaskState::Completed, &ctx.runtime);
                 }
 
                 if let Some(next) = &task.node.next().upgrade() {

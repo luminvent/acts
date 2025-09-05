@@ -34,7 +34,7 @@ async fn cache_push_get() {
     cache.push_proc(&proc);
     assert_eq!(cache.count(), 1);
 
-    let proc = cache.proc(&pid, &engine.runtime());
+    let proc = cache.get_process_state(&pid, &engine.runtime());
     assert!(proc.is_some());
 }
 
@@ -79,7 +79,7 @@ async fn cache_remove() {
         assert!(exists);
 
         cache.remove(pid).unwrap();
-        assert!(cache.proc(pid, &engine.runtime()).is_none());
+        assert!(cache.get_process_state(pid, &engine.runtime()).is_none());
 
         let exists = cache.store().base().procs().exists(pid).unwrap();
         assert!(!exists);
@@ -105,10 +105,10 @@ async fn cache_upsert() {
     let task = proc.create_task(node, None);
 
     proc.set_state(TaskState::Running);
-    cache.upsert(&task).unwrap();
+    cache.create_or_update_task(&task).unwrap();
 
-    let proc = cache.proc(&pid, &engine.runtime()).unwrap();
-    assert_eq!(proc.state(), TaskState::Running);
+    let process_state = cache.get_process_state(&pid, &engine.runtime()).unwrap();
+    assert_eq!(process_state, TaskState::Running);
 }
 
 #[tokio::test]

@@ -1,10 +1,9 @@
 use super::ExecutorQuery;
-use crate::scheduler::Process;
 use crate::{
     scheduler::Runtime,
     store::{PageData, StoreAdapter},
     utils::consts,
-    ModelInfo, ProcInfo, Result, TaskInfo, Vars,
+    ModelInfo, ProcInfo, Result, Vars,
 };
 use std::sync::Arc;
 use tracing::instrument;
@@ -51,26 +50,11 @@ impl ProcessExecutor {
 
     #[instrument(skip(self))]
     pub fn get(&self, pid: &str) -> Result<ProcInfo> {
-        match self.runtime.cache().store().procs().find(pid) {
-            Ok(ref proc) => {
-                let mut info: ProcInfo = proc.into();
-
-                if let Some(proc) = self.runtime.cache().proc(pid, &self.runtime) {
-                    let mut tasks: Vec<TaskInfo> =
-                        proc.tasks().iter().map(TaskInfo::from).collect();
-
-                    tasks.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-                    info.tasks = tasks;
-                }
-
-                Ok(info)
-            }
-            Err(err) => Err(err),
-        }
+        self.runtime.cache().get_process_info(pid, &self.runtime)
     }
 
-    #[instrument(skip(self))]
-    pub fn get_process(&self, pid: &str) -> Option<Arc<Process>> {
-        self.runtime.cache().proc(pid, &self.runtime)
-    }
+    // #[instrument(skip(self))]
+    // pub fn get_process(&self, pid: &str) -> Option<Arc<Process>> {
+    //     self.runtime.cache().proc(pid, &self.runtime)
+    // }
 }

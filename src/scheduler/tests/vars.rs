@@ -4,7 +4,7 @@ use crate::{
     utils::{self, consts},
     Act, Action, MessageState, Vars, Workflow,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 
 #[tokio::test]
 async fn sch_vars_workflow_inputs() {
@@ -405,7 +405,7 @@ async fn sch_vars_act_default_outputs() {
     emitter.on_message(move |e| {
         if e.inner().is_source("act") && e.inner().is_state(MessageState::Created) {
             let mut options = Vars::new();
-            options.insert("var1".to_string(), 10.into());
+            options.insert("outputs".to_string(), json!({"var1": 10}));
             let action = Action::new(&e.inner().pid, &e.inner().tid, EventAction::Next, &options);
             s.do_action(&action).unwrap();
         }
@@ -413,6 +413,7 @@ async fn sch_vars_act_default_outputs() {
     scher.launch(&proc);
     tx.recv().await;
     proc.print();
+
     assert_eq!(
         proc.task_by_nid("act1")
             .first()

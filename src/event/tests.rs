@@ -1,9 +1,5 @@
 use super::EventAction;
-use crate::{
-    event::{Emitter, MessageState},
-    scheduler::{Process, Runtime, TaskState},
-    utils, Engine, Workflow,
-};
+use crate::{event::{Emitter, MessageState}, scheduler::{Process, Runtime, TaskState}, utils, Engine, TaskInfo, Workflow};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -156,12 +152,12 @@ async fn event_on_task() {
     let (proc, rt) = create_proc(&mut workflow, &utils::longid());
     let evt = Emitter::new();
     evt.on_task(move |e| {
-        assert_eq!(e.inner().state(), TaskState::Running);
+        assert_eq!(e.inner().state, "running");
     });
     proc.set_state(TaskState::Running);
     let task = proc.create_task(proc.tree().root.as_ref().unwrap(), None);
-    task.set_state(TaskState::Running);
-    rt.scher().emit_task_event(&task).unwrap();
+    task.set_state(TaskState::Running, &rt);
+    rt.scher().emit_task_event(&TaskInfo::from(&task)).unwrap();
 }
 
 #[tokio::test]

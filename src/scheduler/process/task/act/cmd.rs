@@ -24,17 +24,17 @@ impl Do {
         match key {
             EventAction::Submit => {
                 set_inputs();
-                task.set_state(TaskState::Submitted);
+                task.set_state(TaskState::Submitted, &ctx.runtime);
                 task.next(ctx)?;
             }
             EventAction::Next => {
                 set_inputs();
-                task.set_state(TaskState::Completed);
+                task.set_state(TaskState::Completed, &ctx.runtime);
                 task.next(ctx)?;
             }
             EventAction::Skip => {
                 set_inputs();
-                task.set_state(TaskState::Skipped);
+                task.set_state(TaskState::Skipped, &ctx.runtime);
                 task.next(ctx)?;
             }
             EventAction::Abort => {
@@ -58,7 +58,7 @@ impl Do {
                     .unwrap_or("".to_string());
                 let err = Error::new(&error, &ecode);
                 set_inputs();
-                task.set_err(&err);
+                task.set_err(&err, &ctx.runtime);
                 task.error(ctx)?;
             }
             _ => {

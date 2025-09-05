@@ -1,4 +1,4 @@
-use crate::{scheduler::Context, ActTask, Block, Result, TaskState};
+use crate::{scheduler::Context, ActTask, Block, Result, TaskInfo, TaskState};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -29,10 +29,10 @@ impl ActTask for Block {
             for task in tasks.iter() {
                 if task.state().is_none() || task.state().is_running() {
                     is_next = true;
-                } else if task.state().is_pending() && task.is_ready() {
+                } else if task.state().is_pending() && task.is_ready(ctx) {
                     // resume task
-                    task.set_state(TaskState::Running);
-                    ctx.runtime.scher().emit_task_event(task)?;
+                    task.set_state(TaskState::Running, &ctx.runtime);
+                    ctx.runtime.scher().emit_task_event(&TaskInfo::from(task))?;
 
                     task.exec(ctx)?;
                     is_next = true;
@@ -44,7 +44,7 @@ impl ActTask for Block {
 
             if count == tasks.len() {
                 if !task.state().is_completed() {
-                    task.set_state(TaskState::Completed);
+                    task.set_state(TaskState::Completed, &ctx.runtime);
                 }
 
                 if let Some(next) = &self.next {
@@ -74,7 +74,7 @@ impl ActTask for Block {
                     return Ok(false);
                 }
                 if task.state().is_skip() {
-                    task.set_state(TaskState::Skipped);
+                    task.set_state(TaskState::Skipped, &ctx.runtime);
                     return Ok(true);
                 }
 
@@ -84,7 +84,7 @@ impl ActTask for Block {
             }
             if count == tasks.len() {
                 if !task.state().is_completed() {
-                    task.set_state(TaskState::Completed);
+                    task.set_state(TaskState::Completed, &ctx.runtime);
                 }
 
                 if let Some(next) = &self.next {

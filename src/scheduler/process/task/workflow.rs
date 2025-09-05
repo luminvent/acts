@@ -30,7 +30,7 @@ impl ActTask for Workflow {
                 ctx.sched_task(step);
             }
         } else {
-            task.set_state(TaskState::Completed);
+            task.set_state(TaskState::Completed, &ctx.runtime);
         }
 
         Ok(())
@@ -47,7 +47,7 @@ impl ActTask for Workflow {
         let task = ctx.task();
         let state = task.state();
         if state.is_running() {
-            task.set_state(TaskState::Completed);
+            task.set_state(TaskState::Completed, &ctx.runtime);
             return Ok(true);
         }
 

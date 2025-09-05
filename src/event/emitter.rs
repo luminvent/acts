@@ -1,8 +1,4 @@
-use crate::{
-    event::Message,
-    scheduler::{Process, Runtime, Task},
-    utils, Event, Result, ShareLock,
-};
+use crate::{event::Message, scheduler::{Process, Runtime}, utils, Event, Result, ShareLock, TaskInfo};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -37,7 +33,7 @@ macro_rules! dispatch_key_event {
 
 pub type ActWorkflowMessageHandle = Arc<dyn Fn(&Event<Message>) + Send + Sync>;
 pub type ProcHandle = Arc<dyn Fn(&Event<Arc<Process>>) + Send + Sync>;
-pub type TaskHandle = Arc<dyn Fn(&Event<Arc<Task>, TaskExtra>) + Send + Sync>;
+pub type TaskHandle = Arc<dyn Fn(&Event<TaskInfo, TaskExtra>) + Send + Sync>;
 pub type TickHandle = Arc<dyn Fn(&i64) + Send + Sync>;
 
 pub struct Emitter {
@@ -138,7 +134,7 @@ impl Emitter {
         self.procs.write().unwrap().push(Arc::new(f));
     }
 
-    pub fn on_task(&self, f: impl Fn(&Event<Arc<Task>, TaskExtra>) + Send + Sync + 'static) {
+    pub fn on_task(&self, f: impl Fn(&Event<TaskInfo, TaskExtra>) + Send + Sync + 'static) {
         self.tasks.write().unwrap().push(Arc::new(f));
     }
 
@@ -155,13 +151,13 @@ impl Emitter {
         }
     }
 
-    pub fn emit_task_event(&self, task: &Arc<Task>) -> Result<()> {
+    pub fn emit_task_event(&self, task: &TaskInfo) -> Result<()> {
         debug!("emit_task_event: task={:?}", task);
         let handlers = self.tasks.read().unwrap();
         let e = &Event::new_with_extra(
             &self.runtime.read().unwrap(),
             task,
-            &TaskExtra { emit_message: true },
+            &TaskExtra { emit_message: true, is_emit_disabled: false },
         );
         for handle in handlers.iter() {
             (handle)(e);
@@ -170,13 +166,17 @@ impl Emitter {
         Ok(())
     }
 
-    pub fn emit_task_event_with_extra(&self, task: &Arc<Task>, emit_message: bool) {
+    pub fn emit_task_event_with_extra(&self, task: &TaskInfo, emit_message: bool, is_emit_disabled: bool) {
         debug!("emit_task_event: task={:?}", task);
         let handlers = self.tasks.read().unwrap();
+
         let e = &Event::new_with_extra(
             &self.runtime.read().unwrap(),
             task,
-            &TaskExtra { emit_message },
+            &TaskExtra {
+                emit_message,
+                is_emit_disabled,
+            },
         );
         for handle in handlers.iter() {
             (handle)(e);

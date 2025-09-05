@@ -5,17 +5,10 @@ mod step;
 mod workflow;
 
 use crate::utils::consts::TASK_ROOT_TID;
-use crate::{
-    data::{self, MessageStatus},
-    event::{EventAction, Model},
-    scheduler::{
-        tree::{Node, NodeContent},
-        Context, Process, Runtime, TaskState,
-    },
-    utils::{self, consts},
-    Act, ActError, ActTask, Catch, Error, Message, MessageState, NodeKind, Result, ShareLock,
-    Timeout, Vars,
-};
+use crate::{data::{self, MessageStatus}, event::{EventAction, Model}, scheduler::{
+    tree::{Node, NodeContent},
+    Context, Process, Runtime, TaskState,
+}, utils::{self, consts}, Act, ActError, ActTask, Catch, Error, Message, MessageState, NodeKind, Result, ShareLock, TaskInfo, Timeout, Vars};
 use async_trait::async_trait;
 pub use hook::{StatementBatch, TaskLifeCycle};
 use serde::de::DeserializeOwned;
@@ -274,7 +267,7 @@ impl Task {
         *self.prev.write().unwrap() = prev;
     }
 
-    pub fn set_state(&self, state: TaskState) {
+    pub fn set_state(&self, state: TaskState, rt: &Arc<Runtime>) {
         if state.is_completed() {
             self.set_end_time(utils::time::time_millis());
 
@@ -290,11 +283,13 @@ impl Task {
         if state != TaskState::Error {
             *self.err.write().unwrap() = None;
         }
+
+        rt.cache().create_or_update_task(&Arc::new(self.clone())).unwrap();
     }
 
-    pub fn set_err(&self, err: &Error) {
+    pub fn set_err(&self, err: &Error, rt: &Arc<Runtime>) {
         *self.err.write().unwrap() = Some(err.clone());
-        self.set_state(TaskState::Error);
+        self.set_state(TaskState::Error, rt);
     }
 
     pub(crate) fn set_pure_err(&self, err: &Error) {
@@ -342,12 +337,12 @@ impl Task {
         Ok(())
     }
 
-    pub fn update(self: &Arc<Self>, ctx: &Context) -> Result<()> {
-        // let _lock = self.sync.lock().unwrap();
-        self.update_no_lock(ctx)
-    }
+    // pub fn update(self: &Arc<Self>, ctx: &Context) -> Result<()> {
+    //     // let _lock = self.sync.lock().unwrap();
+    //     self.update_no_lock(ctx)
+    // }
 
-    pub fn update_no_lock(self: &Arc<Self>, ctx: &Context) -> Result<()> {
+    /*pub fn update_no_lock(self: &Arc<Self>, ctx: &Context) -> Result<()> {
         info!("update task={:?}", ctx.task());
         let action = ctx.action().ok_or(ActError::Action(
             "cannot find action in context".to_string(),
@@ -502,7 +497,7 @@ impl Task {
 
                 // set both current act and parent step to skip
                 self.set_state(TaskState::Skipped);
-                self.runtime.cache().upsert(&self);
+                self.runtime.cache().create_or_update_task(&self)?;
                 self.next(ctx)?;
             }
             EventAction::Error => {
@@ -553,7 +548,7 @@ impl Task {
                 }
 
                 self.set_data(&ctx.vars());
-                ctx.runtime.cache().upsert(&self)?;
+                ctx.runtime.cache().create_or_update_task(&self)?;
             }
             EventAction::SetProcessVars => {
                 if self.state().is_completed() {
@@ -565,7 +560,7 @@ impl Task {
 
                 self.proc.set_data(&ctx.vars());
                 if let Some(task) = self.proc.root() {
-                    ctx.runtime.cache().upsert(&task)?;
+                    ctx.runtime.cache().create_or_update_task(&task)?;
                 }
                 ctx.runtime.cache().push_proc(&self.proc);
             }
@@ -580,9 +575,9 @@ impl Task {
             )?;
         }
         Ok(())
-    }
+    }*/
 
-    pub fn is_ready(&self) -> bool {
+    pub fn is_ready(&self, ctx: &Context) -> bool {
         match &self.node.content {
             NodeContent::Branch(n) => {
                 let siblings = self.siblings();
@@ -612,7 +607,7 @@ impl Task {
                             || iter.state().is_success()
                             || iter.state().is_abort()
                     }) {
-                        self.set_state(TaskState::Skipped);
+                        self.set_state(TaskState::Skipped, &ctx.runtime);
                     }
                 }
 
@@ -623,9 +618,9 @@ impl Task {
     }
 
     pub fn resume(self: &Arc<Self>, ctx: &Context) -> Result<()> {
-        if self.is_ready() {
-            self.set_state(TaskState::Running);
-            ctx.runtime.scher().emit_task_event(self)?;
+        if self.is_ready(ctx) {
+            self.set_state(TaskState::Running, &ctx.runtime);
+            ctx.runtime.scher().emit_task_event(&TaskInfo::from(self))?;
             self.exec(ctx)?;
         }
 
@@ -756,13 +751,13 @@ impl Task {
     }
 
     /// check if the task includes act
-    fn is_acts(&self) -> bool {
+    pub(crate) fn is_acts(&self) -> bool {
         self.children()
             .iter()
             .any(|iter| iter.is_kind(NodeKind::Act))
     }
 
-    fn backs<F: Fn(&Arc<Self>) -> bool + Clone>(
+    pub(crate) fn backs<F: Fn(&Arc<Self>) -> bool + Clone>(
         &self,
         predicate: &F,
         path: &mut Vec<Arc<Self>>,
@@ -791,7 +786,7 @@ impl Task {
         ret
     }
 
-    fn follows<F: Fn(&Arc<Self>) -> bool + Clone>(
+    pub(crate) fn follows<F: Fn(&Arc<Self>) -> bool + Clone>(
         &self,
         predicate: &F,
         path: &mut Vec<Arc<Self>>,
@@ -824,7 +819,7 @@ impl ActTask for Arc<Task> {
         ctx.set_task(self);
         if ctx.task().state().is_none() {
             ctx.prepare();
-            ctx.task().set_state(TaskState::Ready);
+            ctx.task().set_state(TaskState::Ready, &ctx.runtime);
             match &self.node.content {
                 NodeContent::Workflow(workflow) => workflow.init(ctx)?,
                 NodeContent::Branch(branch) => branch.init(ctx)?,
@@ -840,7 +835,7 @@ impl ActTask for Arc<Task> {
     fn run(&self, ctx: &Context) -> Result<()> {
         let task = ctx.task();
         if task.state().is_ready() {
-            task.set_state(TaskState::Running);
+            task.set_state(TaskState::Running, &ctx.runtime);
             match &self.node.content {
                 NodeContent::Workflow(workflow) => workflow.run(ctx),
                 NodeContent::Branch(branch) => branch.run(ctx),

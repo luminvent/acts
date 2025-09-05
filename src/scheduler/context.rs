@@ -1,10 +1,5 @@
 use super::{ActTask, Runtime};
-use crate::{
-    event::{Action, Model},
-    scheduler::{tree::NodeContent, Node, Process, Task},
-    utils::{self, consts, shortid},
-    Act, ActError, Message, MessageState, NodeKind, Result, TaskState, Vars,
-};
+use crate::{event::{Action, Model}, scheduler::{tree::NodeContent, Node, Process, Task}, utils::{self, consts, shortid}, Act, ActError, Message, MessageState, NodeKind, Result, TaskInfo, TaskState, Vars};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{cell::RefCell, sync::Arc};
 use tracing::debug;
@@ -159,8 +154,8 @@ impl Context {
 
     pub fn sched_task(&self, node: &Arc<Node>) {
         debug!("sched_task: {}", node.to_string());
-        let task = self.proc.create_task(node, Some(self.task()));
-        self.runtime.push(&task);
+        let task = self.proc.create_task(node, Some(self.task().id.clone()));
+        self.runtime.create_task(&task);
     }
 
     pub fn append_act(&self, act: &Act) -> Result<Arc<Node>> {
@@ -194,8 +189,8 @@ impl Context {
         ));
         // node.set_parent(task.node());
         if task.state().is_ready() || task.state().is_running() {
-            let task = self.proc.create_task(&node, Some(task));
-            self.runtime.push(&task);
+            let task = self.proc.create_task(&node, Some(task.id.clone()));
+            self.runtime.create_task(&task);
         }
 
         Ok(node)
@@ -205,8 +200,8 @@ impl Context {
     pub fn redo_task(&self, task: &Arc<Task>) -> Result<()> {
         if let Some(prev) = task.prev() {
             if let Some(prev_task) = self.proc.task(&prev) {
-                let task = self.proc.create_task(task.node(), Some(prev_task));
-                self.runtime.push(&task);
+                let task = self.proc.create_task(task.node(), Some(prev_task.id.clone()));
+                self.runtime.create_task(&task);
             }
         }
 
@@ -218,11 +213,11 @@ impl Context {
             if task.state().is_completed() {
                 continue;
             }
-            task.set_state(TaskState::Skipped);
+            task.set_state(TaskState::Skipped, &self.runtime);
             self.emit_task(task)?;
         }
 
-        task.set_state(TaskState::Backed);
+        task.set_state(TaskState::Backed, &self.runtime);
         self.emit_task(task)?;
 
         // find parent util to the step task and marks it as backed
@@ -230,7 +225,7 @@ impl Context {
             let mut parent = task.parent();
             while let Some(p) = parent {
                 if p.is_kind(NodeKind::Step) || p.is_kind(NodeKind::Act) {
-                    p.set_state(TaskState::Backed);
+                    p.set_state(TaskState::Backed, &self.runtime);
                     self.emit_task(&p)?;
                     break;
                 }
@@ -241,10 +236,10 @@ impl Context {
         // marks the state in the paths
         for p in paths {
             if p.state().is_running() {
-                p.set_state(TaskState::Completed);
+                p.set_state(TaskState::Completed, &self.runtime);
                 self.emit_task(p)?;
             } else if p.state().is_pending() {
-                p.set_state(TaskState::Skipped);
+                p.set_state(TaskState::Skipped, &self.runtime);
                 self.emit_task(p)?;
             }
         }
@@ -258,27 +253,27 @@ impl Context {
             if task.state().is_completed() {
                 continue;
             }
-            task.set_state(TaskState::Skipped);
+            task.set_state(TaskState::Skipped, &self.runtime);
             self.emit_task(task)?;
         }
 
-        task.set_state(TaskState::Aborted);
+        task.set_state(TaskState::Aborted, &self.runtime);
         self.emit_task(task)?;
 
         // abort all running task
         let ctx = self;
         let mut parent = task.parent();
         while let Some(task) = parent {
-            task.set_state(TaskState::Aborted);
+            task.set_state(TaskState::Aborted, &self.runtime);
             ctx.set_task(&task);
             ctx.emit_task(&ctx.task())?;
 
             for t in task.children() {
                 if t.state().is_pending() {
-                    t.set_state(TaskState::Skipped);
+                    t.set_state(TaskState::Skipped, &self.runtime);
                     ctx.emit_task(&t)?;
                 } else if t.state().is_running() {
-                    t.set_state(TaskState::Aborted);
+                    t.set_state(TaskState::Aborted, &self.runtime);
                     ctx.emit_task(&t)?;
                 }
             }
@@ -306,14 +301,14 @@ impl Context {
                 if t.state().is_completed() {
                     continue;
                 }
-                t.set_state(TaskState::Cancelled);
+                t.set_state(TaskState::Cancelled, &self.runtime);
                 self.emit_task(t)?;
                 nexts.extend_from_slice(&t.children());
             }
 
             children = nexts;
         }
-        task.set_state(TaskState::Completed);
+        task.set_state(TaskState::Completed, &self.runtime);
         self.emit_task(task)?;
 
         Ok(())
@@ -328,7 +323,7 @@ impl Context {
             if task.state().is_error() {
                 if let Some(err) = task.err() {
                     if let Some(parent) = task.parent() {
-                        parent.set_err(&err);
+                        parent.set_err(&err, &self.runtime);
                         return parent.error(self);
                     }
                 }
@@ -351,7 +346,7 @@ impl Context {
             }
         }
 
-        self.runtime.scher().emit_task_event(task)?;
+        self.runtime.scher().emit_task_event(&TaskInfo::from(task))?;
 
         // on workflow complete
         if let NodeContent::Workflow(_) = &task.node().content {
@@ -369,6 +364,7 @@ impl Context {
 
     pub fn emit_message(&self, msg: &Act) -> Result<()> {
         debug!("emit_message: {:?}", msg);
+        println!("===> emit_message: {:?}", msg);
         let workflow = self.proc.model();
         let mut inputs = utils::fill_inputs(&msg.inputs, self);
 

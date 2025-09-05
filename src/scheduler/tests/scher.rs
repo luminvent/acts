@@ -18,7 +18,7 @@ async fn sch_scher_next() {
         s.start(&workflow, &options).unwrap();
     });
 
-    let ret = rt.scher().next().await;
+    let ret = rt.scher().next(&rt).await;
     assert!(ret);
 }
 
@@ -35,7 +35,7 @@ async fn sch_scher_task() {
         s.launch(&proc)
     });
 
-    let ret = rt.scher().next().await;
+    let ret = rt.scher().next(&rt).await;
     assert!(ret);
 }
 
@@ -58,7 +58,7 @@ async fn sch_scher_start_with_vars() {
     vars.insert("b".to_string(), json!("string"));
 
     let proc = rt.start(&workflow, &vars).unwrap();
-    rt.scher().next().await;
+    rt.scher().next(&rt).await;
 
     assert_eq!(proc.inputs().get::<i64>("a").unwrap(), 100);
     assert_eq!(proc.inputs().get::<String>("b").unwrap(), "string");

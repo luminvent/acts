@@ -12,7 +12,7 @@ impl ActTask for Branch {
         let task = ctx.task();
         task.set_emit_disabled(true);
         if !self.needs.is_empty() {
-            task.set_state(TaskState::Pending);
+            task.set_state(TaskState::Pending, &ctx.runtime);
             return Ok(());
         }
 
@@ -21,7 +21,7 @@ impl ActTask for Branch {
                 let is_true = ctx.eval::<bool>(expr)?;
                 debug!("{} = {}", expr, is_true);
                 if !is_true {
-                    task.set_state(TaskState::Skipped);
+                    task.set_state(TaskState::Skipped, &ctx.runtime);
                     return Ok(());
                 }
             }
@@ -32,12 +32,12 @@ impl ActTask for Branch {
                 }
 
                 if !self.r#else {
-                    task.set_state(TaskState::Skipped);
+                    task.set_state(TaskState::Skipped, &ctx.runtime);
                     return Ok(());
                 }
 
                 if branch_count > 1 {
-                    task.set_state(TaskState::Pending);
+                    task.set_state(TaskState::Pending, &ctx.runtime);
                 }
 
                 return Ok(());
@@ -63,7 +63,7 @@ impl ActTask for Branch {
                     ctx.sched_task(child);
                 }
             } else {
-                task.set_state(TaskState::Completed);
+                task.set_state(TaskState::Completed, &ctx.runtime);
             }
             return Ok(!children.is_empty());
         }
@@ -75,7 +75,7 @@ impl ActTask for Branch {
         let task = ctx.task();
         let state = task.state();
         if state.is_running() {
-            task.set_state(TaskState::Completed);
+            task.set_state(TaskState::Completed, &ctx.runtime);
             return Ok(true);
         } else if state.is_skip() {
             return Ok(true);
