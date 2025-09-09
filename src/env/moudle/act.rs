@@ -33,7 +33,9 @@ mod act {
         Context::with(|ctx| {
             let vars = Vars::new().with(&name, value.inner());
             ctx.task().update_data(&vars);
+
             ctx.runtime.cache().push_proc(&ctx.proc);
+
             if let Err(error) = ctx.runtime.cache().upsert(&ctx.task()) {
                 tracing::error!("upsert task error: {}", error);
             }
@@ -44,7 +46,9 @@ mod act {
     pub fn set_process_var(name: String, value: ActValue) {
         Context::with(|ctx| {
             let vars = Vars::new().with(&name, value.inner());
+
             ctx.proc.set_data(&vars);
+
             ctx.runtime.cache().push_proc(&ctx.proc);
         })
     }

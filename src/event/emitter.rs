@@ -150,6 +150,7 @@ impl Emitter {
         debug!("emit_proc_event: {}", proc.id());
         let handlers = self.procs.read().unwrap();
         let e = &Event::new(&self.runtime.read().unwrap(), proc);
+
         for handle in handlers.iter() {
             (handle)(e);
         }

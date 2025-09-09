@@ -77,12 +77,14 @@ impl Process {
     pub fn set_data_with<F: Fn(&mut Vars)>(&self, f: F) {
         if let Some(root) = self.root() {
             root.set_data_with(f);
+            self.runtime.cache().upsert(&root).unwrap();
         }
     }
 
     pub fn set_data(&self, vars: &Vars) {
         if let Some(root) = self.root() {
             root.set_data(vars);
+            self.runtime.cache().upsert(&root).unwrap();
         }
     }
 
@@ -103,7 +105,7 @@ impl Process {
         self.state.read().unwrap().clone()
     }
 
-    pub fn set_err(&self, err: &Error) {
+    pub fn set_err(self: &Arc<Self>, err: &Error) {
         *self.err.write().unwrap() = Some(err.clone());
         self.set_state(TaskState::Error);
     }
@@ -137,7 +139,7 @@ impl Process {
 
     pub fn with_env_local_mut<F: FnOnce(&mut Vars)>(&self, f: F) {
         let mut local = self.env_local.write().unwrap();
-        f(&mut local)
+        f(&mut local);
     }
 
     pub fn outputs(&self) -> Vars {
@@ -235,25 +237,31 @@ impl Process {
             self.set_start_time(utils::time::time_millis());
         }
         *self.state.write().unwrap() = state;
+        self.runtime.cache().push_ref_proc(self);
     }
 
     pub(crate) fn set_start_time(&self, time: i64) {
         *self.start_time.write().unwrap() = time;
+        self.runtime.cache().push_ref_proc(self);
     }
     pub(crate) fn set_end_time(&self, time: i64) {
         *self.end_time.write().unwrap() = time;
+        self.runtime.cache().push_ref_proc(self);
     }
 
     pub(crate) fn set_pure_state(&self, state: TaskState) {
         *self.state.write().unwrap() = state;
+        self.runtime.cache().push_ref_proc(self);
     }
 
     pub(crate) fn set_pure_err(&self, err: &Error) {
         *self.err.write().unwrap() = Some(err.clone());
+        self.runtime.cache().push_ref_proc(self);
     }
 
     pub(crate) fn set_env_local(&self, value: &Vars) {
         *self.env_local.write().unwrap() = value.clone();
+        self.runtime.cache().push_ref_proc(self);
     }
 
     pub(crate) fn do_tick(&self) {
@@ -459,6 +467,24 @@ impl Process {
 
     pub fn into_data(self: &Arc<Self>) -> Result<data::Proc> {
         let model = self.model();
+
+        Ok(data::Proc {
+            id: self.id.clone(),
+            model: model.to_json()?,
+            mid: model.id,
+            name: model.name,
+            state: self.state().into(),
+            start_time: self.start_time(),
+            end_time: self.end_time(),
+            timestamp: self.timestamp(),
+            env_local: self.env_local().to_string(),
+            err: self.err().map(|err| err.to_string()),
+        })
+    }
+
+    pub fn into_data_from_ref(self: &Self) -> Result<data::Proc> {
+        let model = self.model();
+
         Ok(data::Proc {
             id: self.id.clone(),
             model: model.to_json()?,

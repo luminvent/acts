@@ -63,6 +63,12 @@ impl Cache {
     }
 
     #[instrument]
+    pub fn push_ref_proc(&self, proc: &Process) {
+        let store = self.store.read().unwrap();
+        store.upsert_ref_proc(proc).expect("fail to upsert process");
+    }
+
+    #[instrument]
     pub fn push_proc(&self, proc: &Arc<Process>) {
         self.push_proc_pri(proc, true);
     }
@@ -78,7 +84,7 @@ impl Cache {
     #[instrument]
     pub fn proc(&self, pid: &str, rt: &Arc<Runtime>) -> Option<Arc<Process>> {
         debug!("process: pid={pid}");
-        match self.get_proc(pid) {
+        match self.procs.get(pid) {
             Some(proc) => Some(proc.clone()),
             None => {
                 let store = self.store.read().unwrap();
@@ -133,13 +139,25 @@ impl Cache {
         self.push_task_pri(task, true)
     }
 
+    #[instrument]
+    pub fn ref_upsert(&self, task: &Task) -> Result<()> {
+        let p = task.proc();
+
+        let store = self.store.read().unwrap();
+        // update process when updating the task
+        let mut proc = store.procs().find(&task.pid)?;
+        proc.end_time = p.end_time();
+        proc.state = p.state().into();
+        store.procs().update(&proc)?;
+
+        store.upsert_ref_task(task)?;
+
+        Ok(())
+    }
+
     #[cfg(test)]
     pub fn uncache(&self, pid: &str) {
         self.procs.remove(pid);
-    }
-
-    fn get_proc(&self, pid: &str) -> Option<Arc<Process>> {
-        self.procs.get(pid)
     }
 
     pub(super) fn push_proc_pri(&self, proc: &Arc<Process>, save: bool) {

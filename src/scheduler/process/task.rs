@@ -272,6 +272,8 @@ impl Task {
 
     pub fn set_prev(&self, prev: Option<String>) {
         *self.prev.write().unwrap() = prev;
+
+        self.runtime.cache().ref_upsert(&self).unwrap();
     }
 
     pub fn set_state(&self, state: TaskState) {
@@ -290,11 +292,13 @@ impl Task {
         if state != TaskState::Error {
             *self.err.write().unwrap() = None;
         }
+        self.runtime.cache().ref_upsert(&self).unwrap();
     }
 
     pub fn set_err(&self, err: &Error) {
         *self.err.write().unwrap() = Some(err.clone());
         self.set_state(TaskState::Error);
+        self.runtime.cache().ref_upsert(&self).unwrap();
     }
 
     pub(crate) fn set_pure_err(&self, err: &Error) {
@@ -307,13 +311,16 @@ impl Task {
 
     pub fn set_pure_state(&self, state: TaskState) {
         *self.state.write().unwrap() = state;
+        self.runtime.cache().ref_upsert(&self).unwrap();
     }
 
     pub fn set_start_time(&self, time: i64) {
         *self.start_time.write().unwrap() = time;
+        self.runtime.cache().ref_upsert(&self).unwrap();
     }
     pub fn set_end_time(&self, time: i64) {
         *self.end_time.write().unwrap() = time;
+        self.runtime.cache().ref_upsert(&self).unwrap();
     }
 
     pub fn is_kind(&self, kind: NodeKind) -> bool {
@@ -737,6 +744,28 @@ impl Task {
 
     pub fn into_data(self: &Arc<Self>) -> Result<data::Task> {
         let id = utils::Id::new(&self.pid, &self.id);
+
+        Ok(data::Task {
+            id: id.id(),
+            prev: self.prev(),
+            name: self.node.content.name(),
+            kind: self.node.typ(),
+            pid: self.pid.clone(),
+            tid: self.id.clone(),
+            node_data: self.node.to_string(),
+            state: self.state().into(),
+            data: self.data().to_string(),
+            start_time: self.start_time(),
+            end_time: self.end_time(),
+            hooks: serde_json::to_string(&self.hooks()).map_err(ActError::from)?,
+            timestamp: self.timestamp,
+            err: self.err().map(|err| err.to_string()),
+        })
+    }
+
+    pub fn into_data_from_ref(self: &Self) -> Result<data::Task> {
+        let id = utils::Id::new(&self.pid, &self.id);
+
         Ok(data::Task {
             id: id.id(),
             prev: self.prev(),
@@ -956,7 +985,7 @@ impl Task {
         }
     }
 
-    pub fn update_data_if_exists<F: Fn(&mut Vars) -> bool>(&self, f: F) -> bool {
+    fn update_data_if_exists<F: Fn(&mut Vars) -> bool>(&self, f: F) -> bool {
         let mut data = self.data.write().unwrap();
         f(&mut data)
     }

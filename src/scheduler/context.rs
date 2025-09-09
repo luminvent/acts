@@ -116,6 +116,7 @@ impl Context {
         self.proc.with_env_local_mut(|data| {
             data.set(name, value);
         });
+        self.runtime.cache().push_proc(&self.proc);
     }
 
     pub fn get_env<T>(&self, name: &str) -> Option<T>

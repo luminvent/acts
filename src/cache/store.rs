@@ -62,6 +62,7 @@ impl Store {
                 proc.set_start_time(p.start_time);
                 proc.set_env_local(&env_local.into());
                 self.load_tasks(&proc, rt)?;
+
                 if let Some(err) = p.err {
                     let err: Error = serde_json::from_str(&err)
                         .map_err(|err| ActError::Store(err.to_string()))?;
@@ -197,9 +198,40 @@ impl Store {
         Ok(())
     }
 
+    pub fn upsert_ref_task(&self, task: &scheduler::Task) -> Result<()> {
+        debug!("upsert_task: {task:?}");
+        let data: data::Task = task.into_data_from_ref()?;
+        let id = Id::new(&task.pid, &task.id);
+        match self.tasks().find(&id.id()) {
+            Ok(_) => {
+                self.tasks().update(&data)?;
+            }
+            Err(_) => {
+                self.tasks().create(&data)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn upsert_proc(&self, proc: &Arc<scheduler::Process>) -> Result<()> {
         debug!("upsert process: {}", proc.id());
         let data: data::Proc = proc.into_data()?;
+        match self.procs().find(proc.id()) {
+            Ok(_) => {
+                self.procs().update(&data)?;
+            }
+            Err(_) => {
+                self.procs().create(&data)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn upsert_ref_proc(&self, proc: &scheduler::Process) -> Result<()> {
+        debug!("upsert process: {}", proc.id());
+        let data: data::Proc = proc.into_data_from_ref()?;
         match self.procs().find(proc.id()) {
             Ok(_) => {
                 self.procs().update(&data)?;
@@ -227,6 +259,8 @@ impl Store {
             task.timestamp = t.timestamp;
             task.set_prev(t.prev);
 
+            let task = Arc::new(task);
+
             let data =
                 serde_json::from_str(&t.data).map_err(|err| ActError::Store(err.to_string()))?;
             task.set_data(&data);
@@ -242,7 +276,7 @@ impl Store {
             }
             // cache.push(process)
             // cache.push_task_pri(&Arc::new(task), false)?;
-            proc.push_task(Arc::new(task));
+            proc.push_task(task);
         }
 
         Ok(())
